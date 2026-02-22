@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 def _device_info(entry) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, entry.entry_id)},
-        name="Délestage Électrique",
+        name="Delestage Electrique",
         manufacturer="Custom Integration",
         model="Délestage v2",
         entry_type=DeviceEntryType.SERVICE,
@@ -33,7 +33,7 @@ class DelestageSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name      = "État Délestage"
+        self._attr_name      = "Etat Delestage"
         self._attr_unique_id = f"{DOMAIN}_etat"
         self._attr_device_info = _device_info(entry)
 
@@ -79,7 +79,7 @@ class DelestageEquipmentSensor(CoordinatorEntity, SensorEntity):
         self._eq = eq
         name = eq.get(CONF_DEVICE_NAME, eq.get(CONF_DEVICE_ENTITY, "?"))
         uid  = eq.get(CONF_DEVICE_ENTITY, name).replace(".", "_")
-        self._attr_name       = f"Délestage {name}"
+        self._attr_name       = f"Delestage {name}"
         self._attr_unique_id  = f"{DOMAIN}_equip_{uid}"
         self._attr_device_info = _device_info(entry)
 
@@ -116,7 +116,7 @@ class DelestagePowerSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name      = "Délestage Puissance actuelle"
+        self._attr_name      = "Delestage Puissance actuelle"
         self._attr_unique_id = f"{DOMAIN}_current_power"
         self._attr_device_info = _device_info(entry)
 
@@ -147,7 +147,7 @@ class DelestageChargeSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name      = "Délestage Charge"
+        self._attr_name      = "Delestage Charge"
         self._attr_unique_id = f"{DOMAIN}_charge"
         self._attr_device_info = _device_info(entry)
 
@@ -173,7 +173,7 @@ class DelestageCountSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name      = "Délestage Équipements délestés"
+        self._attr_name      = "Delestage Equipements delestes"
         self._attr_unique_id = f"{DOMAIN}_shed_count"
         self._attr_device_info = _device_info(entry)
 
@@ -201,7 +201,7 @@ class DelestageShedPowerSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name      = "Délestage Puissance délestée"
+        self._attr_name      = "Delestage Puissance delestee"
         self._attr_unique_id = f"{DOMAIN}_total_power_shed"
         self._attr_device_info = _device_info(entry)
 
@@ -227,7 +227,7 @@ class DelestageCountdownSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name      = "Délestage Réarmement dans"
+        self._attr_name      = "Delestage Rearmement dans"
         self._attr_unique_id = f"{DOMAIN}_countdown"
         self._attr_device_info = _device_info(entry)
 
