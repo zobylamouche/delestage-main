@@ -1,7 +1,7 @@
 type: vertical-stack
 cards:
   - type: gauge
-    entity: sensor.delestage_puissance_actuelle
+    entity: sensor.puissance_actuelle
     name: Puissance actuelle
     unit: W
     min: 0
@@ -15,34 +15,34 @@ cards:
   - type: entities
     title: ⚡ Delestage electrique
     entities:
-      - entity: sensor.etat_delestage
+      - entity: sensor.etat
         name: Etat
         icon: mdi:lightning-bolt
-      - entity: sensor.delestage_puissance_actuelle
+      - entity: sensor.puissance_actuelle
         name: Puissance actuelle
         icon: mdi:flash
-      - entity: sensor.etat_delestage
+      - entity: sensor.etat
         name: Seuil de delestage
         icon: mdi:flash-alert
         attribute: max_power
         suffix: " W"
-      - entity: sensor.delestage_charge
+      - entity: sensor.charge
         name: Charge (%)
         icon: mdi:percent
-      - entity: sensor.delestage_equipements_delestes
+      - entity: sensor.equipements_delestes
         name: Equipements delestes
         icon: mdi:power-plug-off
-      - entity: sensor.delestage_puissance_delestee
+      - entity: sensor.puissance_delestee
         name: Puissance delestee
         icon: mdi:power-off
-      - entity: sensor.delestage_rearmement_dans
+      - entity: sensor.rearmement_dans
         name: Rearmement dans
         icon: mdi:timer-outline
-      - entity: sensor.etat_delestage
+      - entity: sensor.etat
         name: Dernier delestage
         icon: mdi:clock-alert
         attribute: last_shed_time
-      - entity: sensor.etat_delestage
+      - entity: sensor.etat
         name: Dernier rearmement
         icon: mdi:clock-check
         attribute: last_recovery_time
@@ -50,7 +50,7 @@ cards:
   - type: markdown
     title: "📋 Equipements configures"
     content: |
-      {% set devices = state_attr('sensor.etat_delestage', 'all_devices') %}
+      {% set devices = state_attr('sensor.etat', 'all_devices') %}
       {% if devices and devices | length > 0 %}
       | # | Nom | Puissance | Etat | Deleste |
       |---|-----|-----------|------|---------|
