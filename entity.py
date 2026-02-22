@@ -22,7 +22,6 @@ class DelestageSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        # ── Puissance actuelle ─────────────────────────────────────
         power_state = self.hass.states.get(self.coordinator.power_sensor)
         try:
             current_power = float(power_state.state) if power_state else 0
@@ -32,7 +31,6 @@ class DelestageSensor(CoordinatorEntity, SensorEntity):
         max_power = self.coordinator.max_power
         pct = round((current_power / max_power) * 100, 1) if max_power else 0
 
-        # ── Équipements délestés ───────────────────────────────────
         shed_details = []
         for entity_id in self.coordinator.devices_shed:
             eq = next(
@@ -48,7 +46,6 @@ class DelestageSensor(CoordinatorEntity, SensorEntity):
                     "power":     eq.get(CONF_DEVICE_FIXED_PWR, 0),
                 })
 
-        # ── Tous les équipements ───────────────────────────────────
         all_devices = []
         for eq in sorted(
             self.coordinator.equipments,
@@ -65,18 +62,15 @@ class DelestageSensor(CoordinatorEntity, SensorEntity):
             })
 
         return {
-            # Puissance
             ATTR_CURRENT_POWER:      current_power,
             ATTR_MAX_POWER:          max_power,
             "charge_percent":        pct,
             "rearm_margin":          self.coordinator.rearm_margin,
             "threshold_with_margin": max_power - self.coordinator.rearm_margin,
-            # Délestage
             "devices_shed_count":    len(self.coordinator.devices_shed),
             "devices_shed_details":  shed_details,
             "total_power_shed":      sum(d["power"] for d in shed_details),
             "all_devices":           all_devices,
-            # Historique
             ATTR_LAST_SHED_TIME:     str(self.coordinator.last_shed_time) if self.coordinator.last_shed_time else None,
             ATTR_LAST_RECOVERY_TIME: str(self.coordinator.last_recovery_time) if self.coordinator.last_recovery_time else None,
             "recovery_delay":        self.coordinator.recovery_delay,
