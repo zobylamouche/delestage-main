@@ -14,4 +14,32 @@ async def async_setup_entry(
 ) -> None:
     """Créer et enregistrer le sensor de délestage."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([DelestageSensor(coordinator, entry)], True)
+    # Add main sensor
+    entities = [DelestageSensor(coordinator, entry)]
+
+    # Add one sensor per equipment
+    for eq in coordinator.equipments:
+        name = eq.get("device_name", "Equipement")
+        entity_id = eq.get("entity_id", "")
+        unique_id = f"{DOMAIN}_{entity_id}_equip"
+        class EquipmentSensor(SensorEntity):
+            def __init__(self, eq, coordinator):
+                self._eq = eq
+                self._coordinator = coordinator
+                self._attr_name = name
+                self._attr_unique_id = unique_id
+                self._attr_icon = "mdi:power-plug"
+            @property
+            def native_value(self):
+                state = self._coordinator.hass.states.get(entity_id)
+                return state.state if state else "inconnu"
+            @property
+            def extra_state_attributes(self):
+                return {
+                    "priority": self._eq.get("priority", 0),
+                    "power": self._eq.get("fixed_power", 0),
+                    "shed": entity_id in self._coordinator.devices_shed,
+                }
+        entities.append(EquipmentSensor(eq, coordinator))
+
+    async_add_entities(entities, True)
