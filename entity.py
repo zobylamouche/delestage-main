@@ -3,6 +3,7 @@ import logging
 from homeassistant.components.sensor import SensorEntity, SensorStateClass, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.const import UnitOfPower, PERCENTAGE
 from .const import *
 
@@ -15,7 +16,7 @@ def _device_info(entry) -> DeviceInfo:
         name="Délestage Électrique",
         manufacturer="Custom Integration",
         model="Délestage v2",
-        entry_type="service",
+        entry_type=DeviceEntryType.SERVICE,
     )
 
 
