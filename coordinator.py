@@ -29,30 +29,30 @@ class DelestageCoordinator(DataUpdateCoordinator):
     # Configuration
     # ──────────────────────────────────────────────────────────────
 
-                _LOGGER.warning("[Delestage] _on_power_change: entity_id=%s, current_power=%.0f", entity_id, current_power)
+            # ...existing code...
     def _reload_config(self):
         """Recharge la config depuis data + options."""
         cfg = {**self.entry.data, **self.entry.options}
         self.power_sensor   = cfg.get(CONF_POWER_SENSOR, "")
-                _LOGGER.warning("[Delestage] _delestage_logic: state=%s, current_power=%.0f", self.state, current_power)
+            # ...existing code...
         self.max_power      = float(cfg.get(CONF_MAX_POWER, 6000))
         self.recovery_delay = float(cfg.get(CONF_RECOVERY_DELAY, 300))
-                        _LOGGER.warning("[Delestage] Déclenchement délestage: current_power=%.0f > max_power=%.0f", current_power, self.max_power)
+                # ...existing code...
         self.rearm_margin   = float(cfg.get(CONF_REARM_MARGIN, 0))
         self.equipments     = cfg.get(CONF_EQUIPMENTS, [])
         _LOGGER.warning("[Delestage] _reload_config: power_sensor=%s, max_power=%.0f, recovery_delay=%.0f, rearm_margin=%.0f, nb_equipments=%d", self.power_sensor, self.max_power, self.recovery_delay, self.rearm_margin, len(self.equipments))
         for idx, eq in enumerate(self.equipments):
-                            _LOGGER.warning("[Delestage] Début réarmement: current_power=%.0f < max_power-marge=%.0f", current_power, self.max_power - self.rearm_margin)
+                    # ...existing code...
             _LOGGER.warning("[Delestage] Equipement #%d: %s", idx+1, eq)
         _LOGGER.debug(
-                            _LOGGER.warning("[Delestage] Réarmement effectif après %.0f s", self.recovery_delay)
+                    # ...existing code...
             "Config rechargée — capteur: %s | max: %.0f W | équipements: %d",
             self.power_sensor, self.max_power, len(self.equipments)
         )
 
     def _get_recovery_countdown(self):
         """Secondes restantes avant réarmement."""
-                _LOGGER.warning("[Delestage] _shed_devices: current_power=%.0f, max_power=%.0f", current_power, self.max_power)
+            # ...existing code...
         if self._recovery_start is None:
             return None
         elapsed = (datetime.now() - self._recovery_start).total_seconds()
@@ -63,12 +63,12 @@ class DelestageCoordinator(DataUpdateCoordinator):
     # Setup
     # ──────────────────────────────────────────────────────────────
 
-                    _LOGGER.warning("[Delestage] Coupure: %s (%.0f W)", eq["entity_id"], eq_power)
+                # ...existing code...
     async def async_setup(self):
         """Abonnement au capteur de puissance."""
         if not self.power_sensor:
             _LOGGER.error("Aucun capteur de puissance configuré !")
-                        _LOGGER.warning("[Delestage] Puissance après coupure: %.0f W", current_power - shed_power)
+                # ...existing code...
             return
         async_track_state_change_event(
             self.hass,
@@ -76,7 +76,7 @@ class DelestageCoordinator(DataUpdateCoordinator):
             self._power_changed,
         )
         self.entry.async_on_unload(
-                _LOGGER.warning("[Delestage] _recover_devices: devices_shed=%s", self.devices_shed)
+            # ...existing code...
             self.entry.add_update_listener(self._options_updated)
         )
         _LOGGER.info("Délestage démarré — capteur: %s", self.power_sensor)
@@ -84,12 +84,7 @@ class DelestageCoordinator(DataUpdateCoordinator):
     async def _options_updated(self, hass, entry):
         """Appelé quand les options changent."""
         self._reload_config()
-        _LOGGER.info(
-                    _LOGGER.warning("[Delestage] Rallumage: %s, current_power=%.0f", entity_id, current_power)
-            "Options mises à jour — %d équipement(s) configuré(s)",
-                        _LOGGER.warning("[Delestage] Puissance trop élevée après rallumage: %.0f W", current_power)
-            len(self.equipments)
-        )
+        _LOGGER.info("Options mises à jour — %d équipement(s) configuré(s)", len(self.equipments))
         self.async_update_listeners()
 
     # ──────────────────────────────────────────────────────────────
@@ -98,13 +93,13 @@ class DelestageCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         """Appelé par le coordinator toutes les 5s (polling de secours)."""
-                _LOGGER.warning("[Delestage] _turn_off: %s", entity_id)
+            # ...existing code...
         state = self.hass.states.get(self.power_sensor)
         if state is None:
             return self.data
         try:
             current_power = float(state.state)
-                _LOGGER.warning("[Delestage] _turn_on: %s", entity_id)
+            # ...existing code...
         except (ValueError, TypeError):
             return self.data
         await self._delestage_logic(current_power)
