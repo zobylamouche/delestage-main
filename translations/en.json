@@ -1,33 +1,51 @@
 {
-  "title": "Power Shedding Management",
+  "title": "Power Shedding",
   "config": {
     "step": {
       "user": {
         "title": "Shedding Configuration",
-        "description": "Global parameters for power shedding.",
+        "description": "Global power monitoring parameters.",
         "data": {
           "power_sensor": "Total power sensor",
-          "max_power": "Maximum power (W)",
-          "recovery_delay": "Recovery delay (s)",
-          "rearm_margin": "Rearm margin (W)"
-        }
-      },
-      "options": {
-        "title": "Devices to shed",
-        "description": "Add or edit devices to shed.",
-        "data": {
-          "entity_id": "Device to shed",
-          "priority": "Priority",
-          "power_mode": "Power mode",
-          "fixed_power": "Fixed power (W)",
-          "power_sensor": "Power sensor"
+          "max_power": "Maximum power before shedding (W)",
+          "recovery_delay": "Delay before re-arming (seconds)",
+          "rearm_margin": "Anti-ping-pong margin (W)"
         }
       }
     },
-    "error": {},
-    "abort": {}
+    "error": {
+      "entity_not_found": "Entity not found in Home Assistant"
+    }
   },
   "options": {
-    "step": {}
+    "step": {
+      "init": {
+        "title": "Manage devices",
+        "description": "Configured devices:\n{equipments}",
+        "data": {
+          "action": "Action"
+        }
+      },
+      "add": {
+        "title": "Add a device",
+        "data": {
+          "device_name": "Device name",
+          "entity_id": "Entity to control",
+          "priority": "Priority (1 = shed first)",
+          "power_mode": "Power mode",
+          "fixed_power": "Fixed power (W)",
+          "power_sensor_device": "Device power sensor"
+        }
+      },
+      "remove": {
+        "title": "Remove a device",
+        "data": {
+          "device_to_remove": "Device to remove"
+        }
+      }
+    },
+    "error": {
+      "entity_not_found": "Entity not found in Home Assistant"
+    }
   }
 }

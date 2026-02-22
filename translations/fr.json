@@ -1,33 +1,51 @@
 {
-  "title": "Gestion du délestage électrique",
+  "title": "Délestage Électrique",
   "config": {
     "step": {
       "user": {
         "title": "Configuration du délestage",
-        "description": "Paramètres globaux du délestage.",
+        "description": "Paramètres globaux de surveillance de la puissance.",
         "data": {
           "power_sensor": "Capteur de puissance totale",
-          "max_power": "Puissance maximale (W)",
-          "recovery_delay": "Durée avant retour à la normale (s)",
-          "rearm_margin": "Marge de réarmement (W)"
-        }
-      },
-      "options": {
-        "title": "Équipements à délester",
-        "description": "Ajoutez ou modifiez les équipements à délester.",
-        "data": {
-          "entity_id": "Équipement à délester",
-          "priority": "Priorité",
-          "power_mode": "Mode de puissance",
-          "fixed_power": "Puissance fixe (W)",
-          "power_sensor": "Capteur de puissance"
+          "max_power": "Puissance maximale avant délestage (W)",
+          "recovery_delay": "Délai avant réarmement (secondes)",
+          "rearm_margin": "Marge anti-ping-pong (W)"
         }
       }
     },
-    "error": {},
-    "abort": {}
+    "error": {
+      "entity_not_found": "Entité introuvable dans Home Assistant"
+    }
   },
   "options": {
-    "step": {}
+    "step": {
+      "init": {
+        "title": "Gérer les équipements",
+        "description": "Équipements configurés :\n{equipments}",
+        "data": {
+          "action": "Action"
+        }
+      },
+      "add": {
+        "title": "Ajouter un équipement",
+        "data": {
+          "device_name": "Nom de l'équipement",
+          "entity_id": "Entité à piloter",
+          "priority": "Priorité (1 = coupé en premier)",
+          "power_mode": "Mode de puissance",
+          "fixed_power": "Puissance fixe (W)",
+          "power_sensor_device": "Capteur de puissance de l'équipement"
+        }
+      },
+      "remove": {
+        "title": "Supprimer un équipement",
+        "data": {
+          "device_to_remove": "Équipement à supprimer"
+        }
+      }
+    },
+    "error": {
+      "entity_not_found": "Entité introuvable dans Home Assistant"
+    }
   }
 }
