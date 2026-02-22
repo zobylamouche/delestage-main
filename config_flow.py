@@ -8,6 +8,16 @@ class DelestageOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         # On réutilise la logique de async_step_options
         return await DelestageConfigFlow.async_step_options(self, user_input)
+from homeassistant import config_entries
+
+# OptionsFlow pour permettre la configuration via l'UI
+class DelestageOptionsFlowHandler(config_entries.OptionsFlow):
+    def __init__(self, config_entry):
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        # On réutilise la logique de async_step_options
+        return await DelestageConfigFlow.async_step_options(self, user_input)
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers.selector import (

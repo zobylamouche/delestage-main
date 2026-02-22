@@ -1,6 +1,9 @@
 async def async_get_options_flow(config_entry):
     from .config_flow import DelestageOptionsFlowHandler
     return DelestageOptionsFlowHandler(config_entry)
+async def async_get_options_flow(config_entry):
+    from .config_flow import DelestageOptionsFlowHandler
+    return DelestageOptionsFlowHandler(config_entry)
 import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
