@@ -43,3 +43,10 @@ async def async_setup_entry(
         entities.append(EquipmentSensor(eq, coordinator))
 
     async_add_entities(entities, True)
+
+    # Register dashboard entities for Home Assistant dashboards
+    from .dashboard_entity import DelestageStateEntity, DelestageEquipmentEntity
+    dashboard_entities = [DelestageStateEntity(coordinator)]
+    for eq in coordinator.equipments:
+        dashboard_entities.append(DelestageEquipmentEntity(eq, coordinator))
+    async_add_entities(dashboard_entities, True)
