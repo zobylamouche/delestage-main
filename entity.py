@@ -1,6 +1,5 @@
 """Toutes les entités de l'intégration Délestage."""
 import logging
-from datetime import datetime
 from homeassistant.components.sensor import SensorEntity, SensorStateClass, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
@@ -11,7 +10,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _device_info(entry) -> DeviceInfo:
-    """DeviceInfo commune — regroupe toutes les entités sous un seul appareil."""
     return DeviceInfo(
         identifiers={(DOMAIN, entry.entry_id)},
         name="Délestage Électrique",
@@ -26,104 +24,87 @@ def _device_info(entry) -> DeviceInfo:
 # ══════════════════════════════════════════════════════════════════
 
 class DelestageSensor(CoordinatorEntity, SensorEntity):
-    """
-    Sensor principal : état du délestage + tous les attributs.
-    entity_id : sensor.etat_delestage
-    """
+    """Sensor principal : état + tous les attributs."""
 
-    _attr_has_entity_name = False  # on gère le nom manuellement
+    _attr_has_entity_name = False
+    _attr_icon = "mdi:lightning-bolt"
 
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name        = "État Délestage"
-        self._attr_unique_id   = f"{DOMAIN}_state"   # fixe → toujours sensor.etat_delestage
-        self._attr_icon        = "mdi:lightning-bolt"
+        self._attr_name      = "État Délestage"
+        self._attr_unique_id = f"{DOMAIN}_etat"
         self._attr_device_info = _device_info(entry)
 
     @property
     def native_value(self):
-        return self.coordinator.state
+        data = self.coordinator.data
+        if not data:
+            return self.coordinator.state
+        return data.get("state", self.coordinator.state)
 
     @property
     def extra_state_attributes(self):
-        # ── Puissance actuelle ──────────────────────────────────
-        power_state = self.hass.states.get(self.coordinator.power_sensor)
-        try:
-            current_power = float(power_state.state) if power_state else 0
-        except (ValueError, TypeError):
-            current_power = 0
-
-        max_power = self.coordinator.max_power
-        pct = round((current_power / max_power) * 100, 1) if max_power else 0
-
-        # ── Équipements délestés ────────────────────────────────
-        shed_details = []
-        for entity_id in self.coordinator.devices_shed:
-            eq = next(
-                (e for e in self.coordinator.equipments
-                 if e.get(CONF_DEVICE_ENTITY) == entity_id),
-                None,
-            )
-            if eq:
-                shed_details.append({
-                    "name":      eq.get(CONF_DEVICE_NAME, entity_id),
-                    "entity_id": entity_id,
-                    "priority":  eq.get(CONF_DEVICE_PRIORITY, 0),
-                    "power":     eq.get(CONF_DEVICE_FIXED_PWR, 0),
-                })
-
-        # ── Tous les équipements ────────────────────────────────
-        all_devices = []
-        for eq in sorted(
-            self.coordinator.equipments,
-            key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99),
-        ):
-            state = self.hass.states.get(eq.get(CONF_DEVICE_ENTITY, ""))
-            all_devices.append({
-                "name":      eq.get(CONF_DEVICE_NAME, "?"),
-                "entity_id": eq.get(CONF_DEVICE_ENTITY, ""),
-                "priority":  eq.get(CONF_DEVICE_PRIORITY, 0),
-                "power":     eq.get(CONF_DEVICE_FIXED_PWR, 0),
-                "status":    state.state if state else "inconnu",
-                "shed":      eq.get(CONF_DEVICE_ENTITY) in self.coordinator.devices_shed,
-            })
-
+        data = self.coordinator.data
+        if not data:
+            return {}
         return {
-            # Attributs utilisés par le dashboard
-            ATTR_CURRENT_POWER:      current_power,
-            ATTR_MAX_POWER:          max_power,
-            "charge_percent":        pct,
-            "rearm_margin":          self.coordinator.rearm_margin,
-            "threshold_with_margin": max_power - self.coordinator.rearm_margin,
-            "devices_shed_count":    len(self.coordinator.devices_shed),
-            "devices_shed_details":  shed_details,
-            "total_power_shed":      sum(d["power"] for d in shed_details),
-            "all_devices":           all_devices,
-            # Temps
-            ATTR_LAST_SHED_TIME:     (
-                self.coordinator.last_shed_time.strftime("%d/%m/%Y %H:%M:%S")
-                if self.coordinator.last_shed_time else None
-            ),
-            ATTR_LAST_RECOVERY_TIME: (
-                self.coordinator.last_recovery_time.strftime("%d/%m/%Y %H:%M:%S")
-                if self.coordinator.last_recovery_time else None
-            ),
-            "recovery_delay":        self.coordinator.recovery_delay,
-            ATTR_RECOVERY_REMAINING: self.coordinator._get_recovery_countdown(),
-            "recovery_countdown":    self.coordinator._get_recovery_countdown(),
+            "current_power":      data.get("current_power", 0),
+            "max_power":          data.get("max_power", 0),
+            "charge_percent":     data.get("charge_percent", 0),
+            "devices_shed":       data.get("devices_shed", []),
+            "devices_shed_count": data.get("devices_shed_count", 0),
+            "total_power_shed":   data.get("total_power_shed", 0),
+            "recovery_countdown": data.get("recovery_countdown"),
+            "last_shed_time":     data.get("last_shed_time"),
+            "last_recovery_time": data.get("last_recovery_time"),
+            "all_devices":        data.get("all_devices", []),
         }
 
 
 # ══════════════════════════════════════════════════════════════════
-# Sensors dédiés (chacun expose une valeur numérique propre)
+# Sensor par équipement
+# ══════════════════════════════════════════════════════════════════
+
+class DelestageEquipmentSensor(CoordinatorEntity, SensorEntity):
+    """Un sensor par équipement configuré."""
+
+    _attr_has_entity_name = False
+    _attr_icon = "mdi:power-plug"
+
+    def __init__(self, coordinator, entry, eq: dict):
+        super().__init__(coordinator)
+        self._entry = entry
+        self._eq = eq
+        name = eq.get(CONF_DEVICE_NAME, eq.get(CONF_DEVICE_ENTITY, "?"))
+        uid  = eq.get(CONF_DEVICE_ENTITY, name).replace(".", "_")
+        self._attr_name       = f"Délestage {name}"
+        self._attr_unique_id  = f"{DOMAIN}_equip_{uid}"
+        self._attr_device_info = _device_info(entry)
+
+    @property
+    def native_value(self):
+        entity_id = self._eq.get(CONF_DEVICE_ENTITY, "")
+        s = self.hass.states.get(entity_id)
+        return s.state if s else "inconnu"
+
+    @property
+    def extra_state_attributes(self):
+        entity_id = self._eq.get(CONF_DEVICE_ENTITY, "")
+        return {
+            "priority":  int(float(self._eq.get(CONF_DEVICE_PRIORITY, 99))),
+            "power":     self.coordinator._get_device_power(self._eq),
+            "shed":      entity_id in self.coordinator.devices_shed,
+            "entity_id": entity_id,
+        }
+
+
+# ══════════════════════════════════════════════════════════════════
+# Sensor puissance actuelle
 # ══════════════════════════════════════════════════════════════════
 
 class DelestagePowerSensor(CoordinatorEntity, SensorEntity):
-    """
-    Puissance électrique actuelle en W.
-    entity_id : sensor.delestage_puissance_actuelle
-    """
+    """Puissance électrique actuelle en W."""
 
     _attr_has_entity_name  = False
     _attr_device_class     = SensorDeviceClass.POWER
@@ -140,18 +121,22 @@ class DelestagePowerSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        state = self.hass.states.get(self.coordinator.power_sensor)
+        data = self.coordinator.data
+        if data:
+            return data.get("current_power")
+        s = self.hass.states.get(self.coordinator.power_sensor)
         try:
-            return float(state.state) if state else None
+            return float(s.state) if s else None
         except (ValueError, TypeError):
             return None
 
 
+# ══════════════════════════════════════════════════════════════════
+# Sensor charge %
+# ══════════════════════════════════════════════════════════════════
+
 class DelestageChargeSensor(CoordinatorEntity, SensorEntity):
-    """
-    Charge électrique en %.
-    entity_id : sensor.delestage_charge
-    """
+    """Charge électrique en %."""
 
     _attr_has_entity_name  = False
     _attr_state_class      = SensorStateClass.MEASUREMENT
@@ -162,48 +147,49 @@ class DelestageChargeSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self._entry = entry
         self._attr_name      = "Délestage Charge"
-        self._attr_unique_id = f"{DOMAIN}_charge_percent"
+        self._attr_unique_id = f"{DOMAIN}_charge"
         self._attr_device_info = _device_info(entry)
 
     @property
     def native_value(self):
-        state = self.hass.states.get(self.coordinator.power_sensor)
-        try:
-            current = float(state.state) if state else 0
-        except (ValueError, TypeError):
-            current = 0
-        if not self.coordinator.max_power:
-            return 0
-        return round((current / self.coordinator.max_power) * 100, 1)
+        data = self.coordinator.data
+        if data:
+            return data.get("charge_percent", 0)
+        return 0
 
+
+# ══════════════════════════════════════════════════════════════════
+# Sensor nombre équipements délestés
+# ══════════════════════════════════════════════════════════════════
 
 class DelestageCountSensor(CoordinatorEntity, SensorEntity):
-    """
-    Nombre d'équipements délestés.
-    entity_id : sensor.delestage_equipements_delestes
-    """
+    """Nombre d'équipements délestés."""
 
-    _attr_has_entity_name  = False
-    _attr_state_class      = SensorStateClass.MEASUREMENT
-    _attr_icon             = "mdi:power-plug-off"
+    _attr_has_entity_name = False
+    _attr_icon            = "mdi:power-plug-off"
+    _attr_state_class     = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
         self._attr_name      = "Délestage Équipements délestés"
-        self._attr_unique_id = f"{DOMAIN}_devices_shed_count"
+        self._attr_unique_id = f"{DOMAIN}_shed_count"
         self._attr_device_info = _device_info(entry)
 
     @property
     def native_value(self):
+        data = self.coordinator.data
+        if data:
+            return data.get("devices_shed_count", 0)
         return len(self.coordinator.devices_shed)
 
 
+# ══════════════════════════════════════════════════════════════════
+# Sensor puissance délestée
+# ══════════════════════════════════════════════════════════════════
+
 class DelestageShedPowerSensor(CoordinatorEntity, SensorEntity):
-    """
-    Puissance totale délestée en W.
-    entity_id : sensor.delestage_puissance_delestee
-    """
+    """Puissance totale délestée en W."""
 
     _attr_has_entity_name  = False
     _attr_device_class     = SensorDeviceClass.POWER
@@ -220,76 +206,33 @@ class DelestageShedPowerSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self):
-        total = 0.0
-        for entity_id in self.coordinator.devices_shed:
-            eq = next(
-                (e for e in self.coordinator.equipments
-                 if e.get(CONF_DEVICE_ENTITY) == entity_id),
-                None,
-            )
-            if eq:
-                total += float(eq.get(CONF_DEVICE_FIXED_PWR, 0))
-        return total
+        data = self.coordinator.data
+        if data:
+            return data.get("total_power_shed", 0)
+        return 0
 
+
+# ══════════════════════════════════════════════════════════════════
+# Sensor countdown réarmement
+# ══════════════════════════════════════════════════════════════════
 
 class DelestageCountdownSensor(CoordinatorEntity, SensorEntity):
-    """
-    Secondes avant réarmement.
-    entity_id : sensor.delestage_rearmement_dans
-    """
+    """Secondes avant réarmement."""
 
-    _attr_has_entity_name  = False
-    _attr_state_class      = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "s"
-    _attr_icon             = "mdi:timer-outline"
+    _attr_has_entity_name = False
+    _attr_icon            = "mdi:timer-outline"
+    _attr_state_class     = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, entry):
         super().__init__(coordinator)
         self._entry = entry
         self._attr_name      = "Délestage Réarmement dans"
-        self._attr_unique_id = f"{DOMAIN}_recovery_countdown"
+        self._attr_unique_id = f"{DOMAIN}_countdown"
         self._attr_device_info = _device_info(entry)
 
     @property
     def native_value(self):
+        data = self.coordinator.data
+        if data:
+            return data.get("recovery_countdown")
         return self.coordinator._get_recovery_countdown()
-
-
-# ══════════════════════════════════════════════════════════════════
-# Sensor par équipement
-# ══════════════════════════════════════════════════════════════════
-
-class DelestageEquipmentSensor(CoordinatorEntity, SensorEntity):
-    """
-    Un sensor par équipement piloté.
-    entity_id : sensor.delestage_equip_<entity_id>
-    """
-
-    _attr_has_entity_name = False
-    _attr_icon            = "mdi:power-plug"
-
-    def __init__(self, coordinator, entry, eq: dict):
-        super().__init__(coordinator)
-        self._entry    = entry
-        self._eq       = eq
-        self._eid      = eq.get(CONF_DEVICE_ENTITY, "")
-        slug           = self._eid.replace(".", "_").replace("-", "_")
-        name           = eq.get(CONF_DEVICE_NAME, self._eid)
-
-        self._attr_name        = f"Équipement {name}"
-        self._attr_unique_id   = f"{DOMAIN}_equip_{slug}"
-        self._attr_device_info = _device_info(entry)
-
-    @property
-    def native_value(self):
-        state = self.hass.states.get(self._eid)
-        return state.state if state else "inconnu"
-
-    @property
-    def extra_state_attributes(self):
-        return {
-            "priority":  self._eq.get(CONF_DEVICE_PRIORITY, 0),
-            "power":     self._eq.get(CONF_DEVICE_FIXED_PWR, 0),
-            "shed":      self._eid in self.coordinator.devices_shed,
-            "entity_id": self._eid,
-        }

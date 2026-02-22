@@ -39,11 +39,38 @@ class DelestageCoordinator(DataUpdateCoordinator):
         self.max_power      = float(cfg.get(CONF_MAX_POWER, 6000))
         self.recovery_delay = float(cfg.get(CONF_RECOVERY_DELAY, 300))
         self.rearm_margin   = float(cfg.get(CONF_REARM_MARGIN, 0))
-        self.equipments     = cfg.get(CONF_EQUIPMENTS, [])
+        self.equipments     = sorted(
+            cfg.get(CONF_EQUIPMENTS, []),
+            key=lambda e: int(float(e.get(CONF_DEVICE_PRIORITY, 99)))
+        )
         _LOGGER.debug(
             "Config rechargée — capteur: %s | max: %.0f W | équipements: %d",
             self.power_sensor, self.max_power, len(self.equipments)
         )
+
+    # ──────────────────────────────────────────────────────────────
+    # Setup / Teardown
+    # ──────────────────────────────────────────────────────────────
+
+    async def async_setup(self):
+        """Abonnement temps réel au capteur de puissance."""
+        if self._unsub_tracker:
+            self._unsub_tracker()
+        if self.power_sensor:
+            self._unsub_tracker = async_track_state_change_event(
+                self.hass, [self.power_sensor], self._power_changed
+            )
+            _LOGGER.debug("Tracker abonné sur %s", self.power_sensor)
+
+    async def async_unload(self):
+        """Désabonnement."""
+        if self._unsub_tracker:
+            self._unsub_tracker()
+            self._unsub_tracker = None
+
+    # ──────────────────────────────────────────────────────────────
+    # Helpers internes
+    # ──────────────────────────────────────────────────────────────
 
     def _get_recovery_countdown(self):
         """Secondes restantes avant réarmement."""
@@ -52,52 +79,87 @@ class DelestageCoordinator(DataUpdateCoordinator):
         elapsed = (datetime.now() - self._recovery_start).total_seconds()
         return max(0, round(self.recovery_delay - elapsed))
 
-    # ──────────────────────────────────────────────────────────────
-    # Setup
-    # ──────────────────────────────────────────────────────────────
+    def _get_device_power(self, eq: dict) -> float:
+        """Puissance réelle d'un équipement."""
+        entity_id = eq.get(CONF_DEVICE_ENTITY, "")
+        mode = eq.get(CONF_DEVICE_POWER_MODE, "fixed")
 
-    async def async_setup(self):
-        """Abonnement au capteur de puissance."""
-        if not self.power_sensor:
-            _LOGGER.error("Aucun capteur de puissance configuré !")
-            return
-        self._unsub_tracker = async_track_state_change_event(
-            self.hass,
-            [self.power_sensor],
-            self._power_changed,
-        )
-        self.entry.async_on_unload(
-            self.entry.add_update_listener(self._options_updated)
-        )
-        _LOGGER.info("Délestage démarré — capteur: %s", self.power_sensor)
+        if mode == "sensor":
+            sensor_id = eq.get(CONF_DEVICE_PWR_SENSOR, "")
+            if sensor_id:
+                s = self.hass.states.get(sensor_id)
+                if s and s.state not in ("unavailable", "unknown", None):
+                    try:
+                        return float(s.state)
+                    except (ValueError, TypeError):
+                        pass
+            return 0.0
+        else:
+            # Puissance fixe — retourne 0 si l'équipement est éteint
+            s = self.hass.states.get(entity_id)
+            if s and s.state not in ("off", "unavailable", "unknown"):
+                try:
+                    return float(eq.get(CONF_DEVICE_FIXED_PWR, 0))
+                except (ValueError, TypeError):
+                    return 0.0
+            return 0.0
 
-    async def _options_updated(self, hass, entry):
-        """Appelé quand les options changent."""
-        self._reload_config()
-        _LOGGER.info(
-            "Options mises à jour — %d équipement(s)",
-            len(self.equipments)
-        )
-        self.async_update_listeners()
+    def _build_data(self, current_power: float) -> dict:
+        """Construit le dict de données exposé aux sensors."""
+        shed_power = 0.0
+        all_devices = []
+
+        for eq in self.equipments:
+            entity_id = eq.get(CONF_DEVICE_ENTITY, "")
+            is_shed = entity_id in self.devices_shed
+            power = self._get_device_power(eq)
+            s = self.hass.states.get(entity_id)
+
+            if is_shed:
+                shed_power += float(eq.get(CONF_DEVICE_FIXED_PWR, 0))
+
+            all_devices.append({
+                "name":      eq.get(CONF_DEVICE_NAME, entity_id),
+                "entity_id": entity_id,
+                "priority":  int(float(eq.get(CONF_DEVICE_PRIORITY, 99))),
+                "power":     power,
+                "status":    s.state if s else "inconnu",
+                "shed":      is_shed,
+            })
+
+        return {
+            "state":               self.state,
+            "current_power":       current_power,
+            "max_power":           self.max_power,
+            "charge_percent":      round((current_power / self.max_power) * 100, 1)
+                                   if self.max_power else 0,
+            "devices_shed":        self.devices_shed,
+            "devices_shed_count":  len(self.devices_shed),
+            "total_power_shed":    shed_power,
+            "recovery_countdown":  self._get_recovery_countdown(),
+            "last_shed_time":      str(self.last_shed_time)
+                                   if self.last_shed_time else None,
+            "last_recovery_time":  str(self.last_recovery_time)
+                                   if self.last_recovery_time else None,
+            "all_devices":         all_devices,
+        }
 
     # ──────────────────────────────────────────────────────────────
-    # Update data
+    # Polling + temps réel
     # ──────────────────────────────────────────────────────────────
 
     async def _async_update_data(self):
-        """Polling de secours toutes les 5 s."""
-        state = self.hass.states.get(self.power_sensor)
-        if state is None or state.state in ("unavailable", "unknown"):
-            return self.data or {}
+        """Polling toutes les 5 s."""
+        s = self.hass.states.get(self.power_sensor)
+        if s is None or s.state in ("unavailable", "unknown"):
+            return self._build_data(0.0)
         try:
-            current_power = float(state.state)
+            current_power = float(s.state)
         except (ValueError, TypeError):
-            return self.data or {}
+            return self._build_data(0.0)
+
         await self._delestage_logic(current_power)
-        return {
-            "state":        self.state,
-            "devices_shed": self.devices_shed,
-        }
+        return self._build_data(current_power)
 
     async def _power_changed(self, event):
         """Callback temps réel sur changement de puissance."""
@@ -109,6 +171,7 @@ class DelestageCoordinator(DataUpdateCoordinator):
         except (ValueError, TypeError):
             return
         await self._delestage_logic(current_power)
+        self.async_set_updated_data(self._build_data(current_power))
 
     # ──────────────────────────────────────────────────────────────
     # Logique de délestage
@@ -121,77 +184,74 @@ class DelestageCoordinator(DataUpdateCoordinator):
             current_power, self.max_power, self.state
         )
 
+        # ── Délestage nécessaire ───────────────────────────────
         if current_power > self.max_power:
-            self._recovery_start = None
-            if self.state != STATE_SHEDDING:
-                _LOGGER.warning(
-                    "Seuil dépassé (%.0f W > %.0f W) — délestage !",
-                    current_power, self.max_power
-                )
+            if self.state == STATE_RECOVERING:
+                self._recovery_start = None
+                self.state = STATE_SHEDDING
+
             await self._shed_devices(current_power)
 
-        elif current_power < (self.max_power - self.rearm_margin):
-            if self.state == STATE_SHEDDING and self.devices_shed:
+        # ── En dessous du seuil → réarmement ──────────────────
+        elif self.state == STATE_SHEDDING and self.devices_shed:
+            threshold = self.max_power - self.rearm_margin
+            if current_power <= threshold:
                 if self._recovery_start is None:
                     self._recovery_start = datetime.now()
                     self.state = STATE_RECOVERING
                     _LOGGER.info(
-                        "Puissance OK (%.0f W) — réarmement dans %.0f s",
-                        current_power, self.recovery_delay
+                        "Délai de réarmement démarré (%.0f s)", self.recovery_delay
                     )
-            elif self.state == STATE_RECOVERING:
-                if self._get_recovery_countdown() == 0:
+                elif (datetime.now() - self._recovery_start).total_seconds() \
+                        >= self.recovery_delay:
                     await self._recover_devices(current_power)
 
-        self.async_update_listeners()
+        # ── Récupération en cours : vérifier le délai ─────────
+        elif self.state == STATE_RECOVERING:
+            if self._recovery_start and \
+               (datetime.now() - self._recovery_start).total_seconds() \
+               >= self.recovery_delay:
+                await self._recover_devices(current_power)
+
+        # ── Idle propre ───────────────────────────────────────
+        elif not self.devices_shed:
+            self.state = STATE_IDLE
+            self._recovery_start = None
 
     # ──────────────────────────────────────────────────────────────
     # Délestage
     # ──────────────────────────────────────────────────────────────
 
     async def _shed_devices(self, current_power: float):
-        """Coupe les équipements par priorité jusqu'à repasser sous le seuil."""
-        if not self.equipments:
-            _LOGGER.warning("Aucun équipement configuré pour le délestage !")
-            return
+        """Coupe les équipements par ordre de priorité jusqu'à repasser sous le seuil."""
+        for eq in self.equipments:  # déjà trié par priorité
+            if current_power <= self.max_power:
+                break
 
-        sorted_eq = sorted(
-            self.equipments,
-            key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99)
-        )
-        shed_power = 0.0
-
-        for eq in sorted_eq:
             entity_id = eq.get(CONF_DEVICE_ENTITY, "")
-
             if entity_id in self.devices_shed:
-                shed_power += float(eq.get(CONF_DEVICE_FIXED_PWR, 0))
                 continue
 
-            state = self.hass.states.get(entity_id)
-            if state and state.state in ("off", "unavailable", "unknown"):
+            s = self.hass.states.get(entity_id)
+            if s is None or s.state in ("off", "unavailable", "unknown"):
                 continue
-
-            if eq.get(CONF_DEVICE_POWER_MODE) == "sensor":
-                sensor = self.hass.states.get(eq.get(CONF_DEVICE_PWR_SENSOR, ""))
-                try:
-                    eq_power = float(sensor.state) if sensor else 0
-                except (ValueError, TypeError):
-                    eq_power = 0
-            else:
-                eq_power = float(eq.get(CONF_DEVICE_FIXED_PWR, 0))
 
             await self._turn_off(entity_id)
             self.devices_shed.append(entity_id)
-            shed_power += eq_power
-
             _LOGGER.info(
-                "Délestage : %s coupé (%.0f W) | cumulé: %.0f W",
-                eq.get(CONF_DEVICE_NAME, entity_id), eq_power, shed_power
+                "Délestage : %s (priorité %s) — %.0f W",
+                entity_id,
+                eq.get(CONF_DEVICE_PRIORITY),
+                current_power,
             )
 
-            if (current_power - shed_power) <= self.max_power:
-                break
+            # Relire la puissance après coupure
+            s2 = self.hass.states.get(self.power_sensor)
+            if s2 and s2.state not in ("unavailable", "unknown"):
+                try:
+                    current_power = float(s2.state)
+                except (ValueError, TypeError):
+                    pass
 
         self.state = STATE_SHEDDING
         self.last_shed_time = datetime.now()
@@ -201,15 +261,15 @@ class DelestageCoordinator(DataUpdateCoordinator):
     # ──────────────────────────────────────────────────────────────
 
     async def _recover_devices(self, current_power: float):
-        """Rallume les équipements dans l'ordre inverse."""
+        """Rallume les équipements dans l'ordre inverse de priorité."""
         recovered = []
 
         for entity_id in reversed(list(self.devices_shed)):
             await self._turn_on(entity_id)
 
-            sensor_state = self.hass.states.get(self.power_sensor)
+            s = self.hass.states.get(self.power_sensor)
             try:
-                current_power = float(sensor_state.state) if sensor_state else 0
+                current_power = float(s.state) if s else current_power
             except (ValueError, TypeError):
                 pass
 
@@ -230,7 +290,7 @@ class DelestageCoordinator(DataUpdateCoordinator):
         self.state = STATE_IDLE if not self.devices_shed else STATE_SHEDDING
 
     # ──────────────────────────────────────────────────────────────
-    # Helpers
+    # Helpers turn_on / turn_off
     # ──────────────────────────────────────────────────────────────
 
     async def _turn_off(self, entity_id: str):
