@@ -1,0 +1,11 @@
+{
+  "domain": "delestage",
+  "name": "Gestion du délestage électrique",
+  "version": "1.0.0",
+  "documentation": "https://github.com/tonrepo/delestage",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@tonpseudo"],
+  "config_flow": true,
+  "iot_class": "local_polling"
+}
