@@ -1,0 +1,33 @@
+{
+  "title": "Power Shedding Management",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Shedding Configuration",
+        "description": "Global parameters for power shedding.",
+        "data": {
+          "power_sensor": "Total power sensor",
+          "max_power": "Maximum power (W)",
+          "recovery_delay": "Recovery delay (s)",
+          "rearm_margin": "Rearm margin (W)"
+        }
+      },
+      "options": {
+        "title": "Devices to shed",
+        "description": "Add or edit devices to shed.",
+        "data": {
+          "entity_id": "Device to shed",
+          "priority": "Priority",
+          "power_mode": "Power mode",
+          "fixed_power": "Fixed power (W)",
+          "power_sensor": "Power sensor"
+        }
+      }
+    },
+    "error": {},
+    "abort": {}
+  },
+  "options": {
+    "step": {}
+  }
+}

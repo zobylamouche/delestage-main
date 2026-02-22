@@ -1,0 +1,33 @@
+{
+  "title": "Gestion du délestage électrique",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuration du délestage",
+        "description": "Paramètres globaux du délestage.",
+        "data": {
+          "power_sensor": "Capteur de puissance totale",
+          "max_power": "Puissance maximale (W)",
+          "recovery_delay": "Durée avant retour à la normale (s)",
+          "rearm_margin": "Marge de réarmement (W)"
+        }
+      },
+      "options": {
+        "title": "Équipements à délester",
+        "description": "Ajoutez ou modifiez les équipements à délester.",
+        "data": {
+          "entity_id": "Équipement à délester",
+          "priority": "Priorité",
+          "power_mode": "Mode de puissance",
+          "fixed_power": "Puissance fixe (W)",
+          "power_sensor": "Capteur de puissance"
+        }
+      }
+    },
+    "error": {},
+    "abort": {}
+  },
+  "options": {
+    "step": {}
+  }
+}
