@@ -1,3 +1,4 @@
+"""Coordinateur de délestage électrique."""
 import logging
 from datetime import timedelta, datetime
 from homeassistant.core import HomeAssistant
@@ -9,7 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DelestageCoordinator(DataUpdateCoordinator):
-    """Logique de délestage électrique."""
+    """Logique centrale de délestage."""
 
     def __init__(self, hass: HomeAssistant, entry):
         super().__init__(
@@ -24,6 +25,7 @@ class DelestageCoordinator(DataUpdateCoordinator):
         self.last_shed_time = None
         self.last_recovery_time = None
         self._recovery_start = None
+        self._unsub_tracker = None
         self._reload_config()
 
     # ──────────────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ class DelestageCoordinator(DataUpdateCoordinator):
         if not self.power_sensor:
             _LOGGER.error("Aucun capteur de puissance configuré !")
             return
-        async_track_state_change_event(
+        self._unsub_tracker = async_track_state_change_event(
             self.hass,
             [self.power_sensor],
             self._power_changed,
@@ -73,24 +75,24 @@ class DelestageCoordinator(DataUpdateCoordinator):
         """Appelé quand les options changent."""
         self._reload_config()
         _LOGGER.info(
-            "Options mises à jour — %d équipement(s) configuré(s)",
+            "Options mises à jour — %d équipement(s)",
             len(self.equipments)
         )
         self.async_update_listeners()
 
     # ──────────────────────────────────────────────────────────────
-    # Logique principale
+    # Update data
     # ──────────────────────────────────────────────────────────────
 
     async def _async_update_data(self):
-        """Polling de secours toutes les 5s."""
+        """Polling de secours toutes les 5 s."""
         state = self.hass.states.get(self.power_sensor)
         if state is None or state.state in ("unavailable", "unknown"):
-            return self.data
+            return self.data or {}
         try:
             current_power = float(state.state)
         except (ValueError, TypeError):
-            return self.data
+            return self.data or {}
         await self._delestage_logic(current_power)
         return {
             "state":        self.state,
@@ -107,6 +109,10 @@ class DelestageCoordinator(DataUpdateCoordinator):
         except (ValueError, TypeError):
             return
         await self._delestage_logic(current_power)
+
+    # ──────────────────────────────────────────────────────────────
+    # Logique de délestage
+    # ──────────────────────────────────────────────────────────────
 
     async def _delestage_logic(self, current_power: float):
         """Décision : délester ou réarmer."""
@@ -136,9 +142,6 @@ class DelestageCoordinator(DataUpdateCoordinator):
             elif self.state == STATE_RECOVERING:
                 if self._get_recovery_countdown() == 0:
                     await self._recover_devices(current_power)
-        else:
-            # Entre seuil et marge — on ne fait rien
-            pass
 
         self.async_update_listeners()
 
@@ -152,23 +155,23 @@ class DelestageCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Aucun équipement configuré pour le délestage !")
             return
 
-        sorted_eq = sorted(self.equipments, key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99))
-        shed_power = 0
+        sorted_eq = sorted(
+            self.equipments,
+            key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99)
+        )
+        shed_power = 0.0
 
         for eq in sorted_eq:
             entity_id = eq.get(CONF_DEVICE_ENTITY, "")
 
-            # Déjà délesté
             if entity_id in self.devices_shed:
                 shed_power += float(eq.get(CONF_DEVICE_FIXED_PWR, 0))
                 continue
 
-            # Déjà éteint
             state = self.hass.states.get(entity_id)
             if state and state.state in ("off", "unavailable", "unknown"):
                 continue
 
-            # Calcul puissance
             if eq.get(CONF_DEVICE_POWER_MODE) == "sensor":
                 sensor = self.hass.states.get(eq.get(CONF_DEVICE_PWR_SENSOR, ""))
                 try:
@@ -178,13 +181,12 @@ class DelestageCoordinator(DataUpdateCoordinator):
             else:
                 eq_power = float(eq.get(CONF_DEVICE_FIXED_PWR, 0))
 
-            # Couper
             await self._turn_off(entity_id)
             self.devices_shed.append(entity_id)
             shed_power += eq_power
 
             _LOGGER.info(
-                "Délestage : %s coupé (%.0f W) | économie cumulée: %.0f W",
+                "Délestage : %s coupé (%.0f W) | cumulé: %.0f W",
                 eq.get(CONF_DEVICE_NAME, entity_id), eq_power, shed_power
             )
 
@@ -200,13 +202,11 @@ class DelestageCoordinator(DataUpdateCoordinator):
 
     async def _recover_devices(self, current_power: float):
         """Rallume les équipements dans l'ordre inverse."""
-        self.state = STATE_RECOVERING
         recovered = []
 
         for entity_id in reversed(list(self.devices_shed)):
             await self._turn_on(entity_id)
 
-            # Relire la puissance après allumage
             sensor_state = self.hass.states.get(self.power_sensor)
             try:
                 current_power = float(sensor_state.state) if sensor_state else 0

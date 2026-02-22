@@ -1,3 +1,4 @@
+"""Config flow et Options flow pour le délestage électrique."""
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers.selector import (
@@ -28,6 +29,8 @@ from .const import (
 
 
 class DelestageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Premier assistant de configuration."""
+
     VERSION = 1
 
     @staticmethod
@@ -52,7 +55,7 @@ class DelestageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
             data_schema=vol.Schema({
                 vol.Required(CONF_POWER_SENSOR): EntitySelector(
-                    EntitySelectorConfig(domain=["sensor"])
+                    EntitySelectorConfig(domain=["sensor", "input_number"])
                 ),
                 vol.Required(CONF_MAX_POWER, default=6000): NumberSelector(
                     NumberSelectorConfig(
@@ -80,7 +83,7 @@ class DelestageConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class DelestageOptionsFlow(config_entries.OptionsFlow):
-    """Gestion des équipements via options."""
+    """Gestion des équipements et paramètres via options."""
 
     def __init__(self, config_entry):
         self._entry = config_entry
@@ -99,17 +102,17 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
             elif action == "save":
                 return self.async_create_entry(
                     title="",
-                    data={
-                        **self._entry.options,
-                        CONF_EQUIPMENTS: self._equipments,
-                    },
+                    data={**self._entry.options, CONF_EQUIPMENTS: self._equipments},
                 )
 
         eq_list = "\n".join(
             f"• {eq.get(CONF_DEVICE_NAME, '?')} "
             f"(priorité {eq.get(CONF_DEVICE_PRIORITY, '?')}, "
             f"{eq.get(CONF_DEVICE_FIXED_PWR, '?')} W)"
-            for eq in sorted(self._equipments, key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99))
+            for eq in sorted(
+                self._equipments,
+                key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99)
+            )
         ) or "Aucun équipement configuré"
 
         return self.async_show_form(
@@ -140,11 +143,11 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_DEVICE_ENTITY] = "entity_not_found"
             else:
                 self._equipments.append({
-                    CONF_DEVICE_NAME:      user_input.get(CONF_DEVICE_NAME, ""),
-                    CONF_DEVICE_ENTITY:    entity,
-                    CONF_DEVICE_PRIORITY:  int(user_input.get(CONF_DEVICE_PRIORITY, 1)),
+                    CONF_DEVICE_NAME:       user_input.get(CONF_DEVICE_NAME, ""),
+                    CONF_DEVICE_ENTITY:     entity,
+                    CONF_DEVICE_PRIORITY:   int(user_input.get(CONF_DEVICE_PRIORITY, 1)),
                     CONF_DEVICE_POWER_MODE: user_input.get(CONF_DEVICE_POWER_MODE, "fixed"),
-                    CONF_DEVICE_FIXED_PWR: float(user_input.get(CONF_DEVICE_FIXED_PWR, 0)),
+                    CONF_DEVICE_FIXED_PWR:  float(user_input.get(CONF_DEVICE_FIXED_PWR, 0)),
                     CONF_DEVICE_PWR_SENSOR: user_input.get(CONF_DEVICE_PWR_SENSOR, ""),
                 })
                 return await self.async_step_init()
@@ -189,8 +192,6 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_remove(self, user_input=None):
         """Supprimer un équipement."""
-        errors = {}
-
         if not self._equipments:
             return await self.async_step_init()
 
@@ -211,12 +212,14 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
                     f"— {eq.get(CONF_DEVICE_FIXED_PWR, '?')} W"
                 ),
             }
-            for eq in sorted(self._equipments, key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99))
+            for eq in sorted(
+                self._equipments,
+                key=lambda e: e.get(CONF_DEVICE_PRIORITY, 99)
+            )
         ]
 
         return self.async_show_form(
             step_id="remove",
-            errors=errors,
             data_schema=vol.Schema({
                 vol.Required("device_to_remove"): SelectSelector(
                     SelectSelectorConfig(
@@ -250,7 +253,9 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_POWER_SENSOR,
                     default=current.get(CONF_POWER_SENSOR, "")
-                ): EntitySelector(EntitySelectorConfig(domain=["sensor"])),
+                ): EntitySelector(
+                    EntitySelectorConfig(domain=["sensor", "input_number"])
+                ),
                 vol.Required(
                     CONF_MAX_POWER,
                     default=current.get(CONF_MAX_POWER, 6000)

@@ -42,6 +42,15 @@
         "data": {
           "device_to_remove": "Équipement à supprimer"
         }
+      },
+      "settings": {
+        "title": "Paramètres globaux",
+        "data": {
+          "power_sensor": "Capteur de puissance totale",
+          "max_power": "Puissance maximale (W)",
+          "recovery_delay": "Délai avant réarmement (s)",
+          "rearm_margin": "Marge anti-ping-pong (W)"
+        }
       }
     },
     "error": {
