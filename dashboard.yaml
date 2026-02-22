@@ -1,0 +1,64 @@
+type: vertical-stack
+cards:
+  - type: gauge
+    entity: sensor.delestage_puissance_actuelle
+    name: Puissance actuelle
+    unit: W
+    min: 0
+    max: 12000
+    needle: true
+    severity:
+      green: 0
+      yellow: 4000
+      red: 6000
+
+  - type: entities
+    title: ⚡ Delestage electrique
+    entities:
+      - entity: sensor.etat_delestage
+        name: Etat
+        icon: mdi:lightning-bolt
+      - entity: sensor.delestage_puissance_actuelle
+        name: Puissance actuelle
+        icon: mdi:flash
+      - entity: sensor.etat_delestage
+        name: Seuil de delestage
+        icon: mdi:flash-alert
+        attribute: max_power
+        suffix: " W"
+      - entity: sensor.delestage_charge
+        name: Charge (%)
+        icon: mdi:percent
+      - entity: sensor.delestage_equipements_delestes
+        name: Equipements delestes
+        icon: mdi:power-plug-off
+      - entity: sensor.delestage_puissance_delestee
+        name: Puissance delestee
+        icon: mdi:power-off
+      - entity: sensor.delestage_rearmement_dans
+        name: Rearmement dans
+        icon: mdi:timer-outline
+      - entity: sensor.etat_delestage
+        name: Dernier delestage
+        icon: mdi:clock-alert
+        attribute: last_shed_time
+      - entity: sensor.etat_delestage
+        name: Dernier rearmement
+        icon: mdi:clock-check
+        attribute: last_recovery_time
+
+  - type: markdown
+    title: "📋 Equipements configures"
+    content: |
+      {% set devices = state_attr('sensor.etat_delestage', 'all_devices') %}
+      {% if devices and devices | length > 0 %}
+      | # | Nom | Puissance | Etat | Deleste |
+      |---|-----|-----------|------|---------|
+      {% for d in devices | sort(attribute='priority') %}
+      | {{ d.priority }} | {{ d.name }} | {{ d.power }} W | {{ d.status }} | {{ '🔴 OUI' if d.shed else '🟢 NON' }} |
+      {% endfor %}
+      {% else %}
+      Aucun equipement configure. Allez dans Parametres -> Integrations -> Delestage -> Configurer
+      {% endif %}
+
+
