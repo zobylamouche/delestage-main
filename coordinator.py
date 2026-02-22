@@ -16,12 +16,9 @@ class DelestageCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name="Delestage Coordinator",
-                _LOGGER.warning("[Delestage] async_setup: power_sensor=%s", self.power_sensor)
-                if not self.power_sensor:
         )
         self.entry = entry
         self.state = STATE_IDLE
-                _LOGGER.warning("[Delestage] Abonnement à state_changed pour %s", self.power_sensor)
         self.devices_shed = []
         self.last_shed_time = None
         self.last_recovery_time = None
