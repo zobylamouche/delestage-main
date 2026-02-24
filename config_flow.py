@@ -234,6 +234,9 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
         """Modifier les paramètres globaux."""
         errors = {}
         current = {**self._entry.data, **self._entry.options}
+        # Ajout d'une option pour activer/désactiver le délestage
+        enable_shedding = current.get("enable_shedding", True)
+
 
         if user_input is not None:
             updated = {
@@ -242,6 +245,7 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
                 CONF_MAX_POWER:      float(user_input.get(CONF_MAX_POWER, 6000)),
                 CONF_RECOVERY_DELAY: float(user_input.get(CONF_RECOVERY_DELAY, 300)),
                 CONF_REARM_MARGIN:   float(user_input.get(CONF_REARM_MARGIN, 0)),
+                "enable_shedding":  user_input.get("enable_shedding", True),
                 CONF_EQUIPMENTS:     self._equipments,
             }
             return self.async_create_entry(title="", data=updated)
@@ -280,5 +284,9 @@ class DelestageOptionsFlow(config_entries.OptionsFlow):
                     mode=NumberSelectorMode.BOX,
                     unit_of_measurement="W",
                 )),
+                vol.Optional(
+                    "enable_shedding",
+                    default=enable_shedding
+                ): bool,
             }),
         )

@@ -27,8 +27,8 @@ class DelestageCoordinator(DataUpdateCoordinator):
         self._recovery_start = None
         self._unsub_tracker = None
         self._reload_config()
-        # Variable pour activer/désactiver le délestage
-        self.enable_shedding = True  # Mettre à False pour désactiver le délestage
+        # Variable pour activer/désactiver le délestage (prise depuis les options)
+        self.enable_shedding = self.entry.options.get("enable_shedding", True)
 
     # ──────────────────────────────────────────────────────────────
     # Configuration
@@ -45,6 +45,7 @@ class DelestageCoordinator(DataUpdateCoordinator):
             cfg.get(CONF_EQUIPMENTS, []),
             key=lambda e: int(float(e.get(CONF_DEVICE_PRIORITY, 99)))
         )
+        self.enable_shedding = cfg.get("enable_shedding", True)
         _LOGGER.debug(
             "Config rechargée — capteur: %s | max: %.0f W | équipements: %d",
             self.power_sensor, self.max_power, len(self.equipments)
