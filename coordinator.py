@@ -27,6 +27,8 @@ class DelestageCoordinator(DataUpdateCoordinator):
         self._recovery_start = None
         self._unsub_tracker = None
         self._reload_config()
+        # Variable pour activer/désactiver le délestage
+        self.enable_shedding = True  # Mettre à False pour désactiver le délestage
 
     # ──────────────────────────────────────────────────────────────
     # Configuration
@@ -180,9 +182,18 @@ class DelestageCoordinator(DataUpdateCoordinator):
     async def _delestage_logic(self, current_power: float):
         """Décision : délester ou réarmer."""
         _LOGGER.debug(
-            "Puissance: %.0f W / seuil: %.0f W / état: %s",
-            current_power, self.max_power, self.state
+            "Puissance: %.0f W / seuil: %.0f W / état: %s | Délestage activé: %s",
+            current_power, self.max_power, self.state, self.enable_shedding
         )
+
+        if not self.enable_shedding:
+            # Si le délestage est désactivé, on ne coupe rien et on réarme tout si besoin
+            if self.devices_shed:
+                _LOGGER.info("Délestage désactivé : réarmement de tous les équipements si besoin.")
+                await self._recover_devices(current_power)
+            self.state = STATE_IDLE
+            self._recovery_start = None
+            return
 
         # ── Délestage nécessaire ───────────────────────────────
         if current_power > self.max_power:
@@ -295,12 +306,16 @@ class DelestageCoordinator(DataUpdateCoordinator):
 
     async def _turn_off(self, entity_id: str):
         domain = entity_id.split(".")[0]
+        _LOGGER.info(f"[Délestage] Désactivation demandée pour {entity_id} (domain: {domain})")
         await self.hass.services.async_call(
             domain, "turn_off", {"entity_id": entity_id}, blocking=True
         )
+        _LOGGER.info(f"[Délestage] Désactivation effectuée pour {entity_id}")
 
     async def _turn_on(self, entity_id: str):
         domain = entity_id.split(".")[0]
+        _LOGGER.info(f"[Délestage] Activation demandée pour {entity_id} (domain: {domain})")
         await self.hass.services.async_call(
             domain, "turn_on", {"entity_id": entity_id}, blocking=True
         )
+        _LOGGER.info(f"[Délestage] Activation effectuée pour {entity_id}")
